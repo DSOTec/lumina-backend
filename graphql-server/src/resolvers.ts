@@ -665,6 +665,15 @@ export const resolvers = {
         : getOperationsByTransactionHash(ctx.pool, network.name, parent.hash);
     },
   },
+  ContractEvent: {
+    async transaction(parent: { transactionHash?: string | null; network?: string }, _: unknown, ctx: Context) {
+      if (!parent.transactionHash) return null;
+      const network = networkForParent(ctx, parent.network);
+      return ctx.loaders
+        ? ctx.loaders(network).transaction.load(parent.transactionHash)
+        : getTransactionByHash(ctx.pool, network.name, parent.transactionHash);
+    },
+  },
 
   Operation: {
     async transaction(parent: { transactionHash: string; network?: string }, _: unknown, ctx: Context) {

@@ -984,6 +984,10 @@ type ContractEvent {
   topics: [String!]!
   """Event payload, JSON-encoded as a string; null when the event had none."""
   value: String  # JSON-encoded value
+  """Transaction hash reported by Soroban RPC; null when unavailable."""
+  transactionHash: String
+  """The indexed transaction row, when the hash is present locally."""
+  transaction: Transaction
 }
 
 """
@@ -1408,4 +1412,3 @@ type TradePage {
   items: [Trade!]!
   pageInfo: PageInfo!
 }
-

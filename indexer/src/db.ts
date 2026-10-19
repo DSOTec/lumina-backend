@@ -525,8 +525,8 @@ export async function insertContractEvents(
     for (const event of events) {
       await pool.query({
         name: PREPARED_STATEMENTS.INSERT_CONTRACT_EVENT,
-        text: `INSERT INTO contract_events (id, type, contract_id, ledger, created_at, paging_token, topics, value, network)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        text: `INSERT INTO contract_events (id, type, contract_id, ledger, created_at, paging_token, topics, value, transaction_hash, network)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                ON CONFLICT (id, network) DO NOTHING`,
         values: [
           event.id,
@@ -537,6 +537,7 @@ export async function insertContractEvents(
           event.pagingToken,
           event.topics,
           event.value === undefined ? null : JSON.stringify(event.value),
+          event.transactionHash,
           network,
         ],
       });
@@ -2049,5 +2050,3 @@ export async function processContractInterfaceOperation(
     );
   }
 }
-
-

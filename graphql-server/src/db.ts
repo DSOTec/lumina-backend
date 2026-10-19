@@ -87,6 +87,7 @@ interface EventRow {
   paging_token: string;
   topics: string[];
   value: unknown;
+  transaction_hash: string | null;
 }
 
 interface ContractStorageEntryRow {
@@ -128,7 +129,7 @@ const LEDGER_COLUMNS =
   'sequence, network, closed_at, transaction_count, operation_count, base_fee, base_reserve';
 const ACCOUNT_COLUMNS =
   'address, network, sequence, subentry_count, last_modified_ledger, num_sponsored, num_sponsoring, balances, flags, thresholds';
-const EVENT_COLUMNS = 'id, network, type, contract_id, ledger, created_at, paging_token, topics, value';
+const EVENT_COLUMNS = 'id, network, type, contract_id, ledger, created_at, paging_token, topics, value, transaction_hash';
 const CONTRACT_STORAGE_ENTRY_COLUMNS =
   'contract_id, network, key, durability, state, value, value_xdr, live_until_ledger, last_modified_ledger';
 const TRADE_COLUMNS = `id, paging_token, ledger_close_time, trade_type, base_account, base_amount,
@@ -255,6 +256,7 @@ export function mapEvent(row: EventRow) {
     pagingToken: row.paging_token,
     topics: row.topics,
     value: row.value === null ? null : JSON.stringify(row.value),
+    transactionHash: row.transaction_hash,
   };
 }
 

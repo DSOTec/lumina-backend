@@ -24,11 +24,11 @@
     "paramCount": 6
   },
   "getEventsByContract_default": {
-    "sql": "SELECT id, network, type, contract_id, ledger, created_at, paging_token, topics, value FROM contract_events WHERE contract_id = $1 AND network = $2 ORDER BY ledger DESC, id DESC LIMIT $3",
+    "sql": "SELECT id, network, type, contract_id, ledger, created_at, paging_token, topics, value, transaction_hash FROM contract_events WHERE contract_id = $1 AND network = $2 ORDER BY ledger DESC, id DESC LIMIT $3",
     "paramCount": 3
   },
   "getEventsByContract_filtered_forward": {
-    "sql": "SELECT id, network, type, contract_id, ledger, created_at, paging_token, topics, value FROM contract_events WHERE contract_id = $1 AND network = $2 AND $3 = ANY(topics) AND (ledger, id) < (SELECT ledger, id FROM contract_events WHERE id = $4 AND network = $2) ORDER BY ledger DESC, id DESC LIMIT $5",
+    "sql": "SELECT id, network, type, contract_id, ledger, created_at, paging_token, topics, value, transaction_hash FROM contract_events WHERE contract_id = $1 AND network = $2 AND $3 = ANY(topics) AND (ledger, id) < (SELECT ledger, id FROM contract_events WHERE id = $4 AND network = $2) ORDER BY ledger DESC, id DESC LIMIT $5",
     "paramCount": 5
   },
   "getLedgers_backward": {

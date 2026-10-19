@@ -65,6 +65,8 @@ export interface ContractEvent {
   pagingToken: string;
   topics: string[];
   value: unknown;
+  /** The transaction that emitted the event, when the RPC supplied one. */
+  transactionHash: string | null;
 }
 
 interface RpcEventRecord {
@@ -76,6 +78,10 @@ interface RpcEventRecord {
   pagingToken: string;
   topic: string[];
   value: string;
+  /** Present on current RPC versions; older nodes may omit it. */
+  txHash?: string;
+  /** Used as a fallback when an older node omits txHash. */
+  transactionIndex?: number;
 }
 
 interface RpcGetEventsResult {
@@ -90,6 +96,28 @@ export interface GetEventsResult {
   latestLedger: number;
   /** Whether the result was truncated due to the per-cycle limit. */
   truncated: boolean;
+}
+
+export interface SorobanTransaction {
+  txHash: string;
+  status: string;
+  ledger: number;
+  createdAt: string;
+  applicationOrder: number;
+}
+
+interface RpcTransactionRecord {
+  status: string;
+  txHash: string;
+  ledger: number;
+  createdAt: string;
+  applicationOrder: number;
+}
+
+interface RpcGetTransactionsResult {
+  transactions?: RpcTransactionRecord[];
+  latestLedger: number;
+  cursor?: string;
 }
 
 export interface LedgerEntryResult {
@@ -289,6 +317,48 @@ export async function getContractStorageEntries(
 }
 
 /**
+ * Fetch transactions for the ledger range containing a batch of events.
+ * Soroban RPC pages this endpoint independently from getEvents, so keeping
+ * this lookup bounded to the event range avoids scanning unrelated history.
+ */
+export async function getTransactions(
+  rpcUrl: string,
+  startLedger: number,
+  endLedger: number,
+  maxTransactions = 10_000,
+): Promise<{ transactions: SorobanTransaction[]; latestLedger: number }> {
+  const PAGE_LIMIT = 200;
+  const transactions: SorobanTransaction[] = [];
+  let cursor: string | undefined;
+  let latestLedger = startLedger;
+
+  while (transactions.length < maxTransactions) {
+    const remaining = maxTransactions - transactions.length;
+    const limit = Math.min(PAGE_LIMIT, remaining);
+    const pagination: Record<string, unknown> = { limit };
+    if (cursor) pagination.cursor = cursor;
+
+    const params: Record<string, unknown> = cursor
+      ? { pagination }
+      : { startLedger, endLedger, pagination };
+    const result = await rpcCall<RpcGetTransactionsResult>(rpcUrl, 'getTransactions', params);
+    latestLedger = Math.max(latestLedger, result.latestLedger ?? 0);
+    transactions.push(...(result.transactions ?? []).map(transaction => ({
+      txHash: transaction.txHash,
+      status: transaction.status,
+      ledger: transaction.ledger,
+      createdAt: transaction.createdAt,
+      applicationOrder: transaction.applicationOrder,
+    })));
+
+    if (!result.cursor || transactions.length >= maxTransactions) break;
+    cursor = result.cursor;
+  }
+
+  return { transactions, latestLedger };
+}
+
+/**
  * One `getEvents` call for a single contract-id chunk, following pagination
  * until the range is exhausted or the call's event budget is hit.
  *
@@ -393,6 +463,26 @@ export async function getEvents(
     );
   }
 
+  let transactionByPosition = new Map<string, SorobanTransaction>();
+  if (allEvents.length > 0) {
+    const minEventLedger = Math.min(...allEvents.map(event => event.ledger));
+    const maxEventLedger = Math.max(...allEvents.map(event => event.ledger));
+    try {
+      const transactionResult = await getTransactions(rpcUrl, minEventLedger, maxEventLedger + 1);
+      transactionByPosition = new Map(
+        transactionResult.transactions.map(transaction => [
+          `${transaction.ledger}:${transaction.applicationOrder}`,
+          transaction,
+        ])
+      );
+    } catch (error) {
+      // Event ingestion must remain useful when the provider's transaction
+      // history is temporarily unavailable. Current RPC event records carry
+      // txHash themselves; older records will remain explicitly unlinked.
+      log.warn({ error: error instanceof Error ? error.message : String(error) }, 'could not resolve event transaction context');
+    }
+  }
+
   const mappedEvents = allEvents.map(record => ({
     id: record.id,
     type: record.type,
@@ -402,6 +492,8 @@ export async function getEvents(
     pagingToken: record.pagingToken,
     topics: record.topic.map(t => JSON.stringify(decodeScValLegacy(t))),
     value: decodeScValLegacy(record.value),
+    transactionHash:
+      record.txHash ?? transactionByPosition.get(`${record.ledger}:${record.transactionIndex}`)?.txHash ?? null,
   }));
 
   return { events: mappedEvents, latestLedger, truncated };

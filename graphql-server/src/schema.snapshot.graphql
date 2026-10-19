@@ -893,6 +893,10 @@ type ContractEvent {
   type: String!
   """Contract the event was emitted by."""
   contractId: String!
+  """Hash of the transaction that emitted this event, when RPC provided it."""
+  transactionHash: String
+  """Indexed transaction containing this event, when the transaction row is available locally."""
+  transaction: Transaction
   """Ledger the event was emitted in."""
   ledger: Int!
   """When that ledger closed (ISO-8601)."""
@@ -1316,4 +1320,3 @@ type TradePage {
   items: [Trade!]!
   pageInfo: PageInfo!
 }
-

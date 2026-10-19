@@ -138,6 +138,7 @@ test('mapEvent JSON-encodes the value column for the String scalar', () => {
     id: 'evt1',
     type: 'contract',
     contract_id: 'CABC',
+    transaction_hash: 'tx1',
     ledger: '100',
     created_at: new Date('2026-01-01T00:00:00Z'),
     paging_token: 'tok1',
@@ -145,6 +146,7 @@ test('mapEvent JSON-encodes the value column for the String scalar', () => {
     value: { amount: '10' },
   });
   assert.equal(result.value, '{"amount":"10"}');
+  assert.equal(result.transactionHash, 'tx1');
 });
 
 test('getTransactions maps rows and passes limit/cursor params', async () => {

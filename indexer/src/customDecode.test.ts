@@ -52,6 +52,7 @@ function event(overrides: Partial<ContractEvent> = {}): ContractEvent {
     pagingToken: '500-1',
     topics: [JSON.stringify('transfer'), JSON.stringify(FROM), JSON.stringify(TO)],
     value: { amount: 1000n },
+    transactionHash: null,
     ...overrides,
   };
 }

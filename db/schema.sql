@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS contract_events (
     paging_token        TEXT NOT NULL,
     topics              TEXT[] NOT NULL DEFAULT '{}',
     value               JSONB,
+    transaction_hash    TEXT,
     indexed_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     network             TEXT NOT NULL DEFAULT 'mainnet',
     PRIMARY KEY (id, network),
@@ -213,6 +214,7 @@ CREATE INDEX idx_events_contract_id  ON contract_events (contract_id);
 CREATE INDEX idx_events_ledger       ON contract_events (ledger DESC);
 CREATE INDEX idx_events_created_at   ON contract_events (created_at DESC);
 CREATE INDEX idx_events_topics       ON contract_events USING GIN (topics);
+CREATE INDEX idx_events_transaction  ON contract_events (transaction_hash, network);
 
 -- ─── Custom per-contract event schemas ───────────────────────────────────
 -- One row per contract that has registered a schema. The definition is stored
