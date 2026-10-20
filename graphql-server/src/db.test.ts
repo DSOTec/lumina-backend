@@ -113,6 +113,30 @@ test('mapOperation collapses asset_type/code/issuer into a single asset string',
   assert.equal(trustline.asset, 'USDC:GISSUER');
 });
 
+const operationRow = (type: string, details: Record<string, unknown>) => ({
+  network: 'mainnet', id: 'op', type, transaction_hash: 'tx', ledger: '100',
+  created_at: new Date('2026-01-01T00:00:00Z'), source_account: 'GABC', details,
+});
+
+test('mapOperation gives a pool-share trustline no asset string rather than "null:null"', () => {
+  // The projection returns JSON null for keys the record lacks, and a pool
+  // share has a type but no code or issuer.
+  const pool = mapOperation(operationRow('change_trust', { asset_type: 'liquidity_pool_shares', asset_code: null, asset_issuer: null }));
+  assert.equal(pool.asset, null);
+});
+
+test('mapOperation reads bump_sequence and manage_data fields by the keys Horizon uses', () => {
+  const bump = mapOperation(operationRow('bump_sequence', { bump_to: '279343990032449537' }));
+  assert.equal(bump.bumpSequence, '279343990032449537');
+  const data = mapOperation(operationRow('manage_data', { name: 'config', value: 'dmFsdWU=' }));
+  assert.equal(data.dataName, 'config');
+  assert.equal(data.dataValue, 'dmFsdWU=');
+  // `name` and `value` mean nothing on other types, so they are not borrowed.
+  const payment = mapOperation(operationRow('payment', { name: 'x', value: 'y' }));
+  assert.equal(payment.dataName, null);
+  assert.equal(payment.dataValue, null);
+});
+
 test('mapAccount converts snake_case balances/flags/thresholds to GraphQL shape', () => {
   const result = mapAccount({
     network: 'mainnet',

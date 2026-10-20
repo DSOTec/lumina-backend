@@ -147,7 +147,10 @@ const OPERATION_COLUMNS = `id, network, type, transaction_hash, ledger, created_
     'selling_asset_issuer', details->'selling_asset_issuer',
     'buying_asset_type', details->'buying_asset_type',
     'buying_asset_code', details->'buying_asset_code',
-    'buying_asset_issuer', details->'buying_asset_issuer'
+    'buying_asset_issuer', details->'buying_asset_issuer',
+    'bump_to', details->'bump_to',
+    'name', details->'name',
+    'value', details->'value'
   ) AS details`;
 const LEDGER_COLUMNS =
   'sequence, network, closed_at, transaction_count, operation_count, base_fee, base_reserve';
@@ -194,6 +197,10 @@ export function mapTransaction(row: TransactionRow) {
 function formatAsset(type?: string, code?: string, issuer?: string): string | null {
   if (!type) return null;
   if (type === 'native') return 'XLM';
+  // A liquidity pool share (`liquidity_pool_shares`) has a type and neither a
+  // code nor an issuer, so there is no CODE:ISSUER to give; it used to come
+  // out as "null:null". See docs/OPERATIONS_DETAILS_CONTRACT.md.
+  if (!code || !issuer) return null;
   return `${code}:${issuer}`;
 }
 
@@ -221,6 +228,9 @@ export function mapOperation(row: OperationRow) {
     price: (d['price'] as string) ?? null,
     selling: formatAsset(d['selling_asset_type'] as string, d['selling_asset_code'] as string, d['selling_asset_issuer'] as string),
     buying: formatAsset(d['buying_asset_type'] as string, d['buying_asset_code'] as string, d['buying_asset_issuer'] as string),
+    bumpSequence: row.type === 'bump_sequence' ? (d['bump_to'] as string) ?? null : null,
+    dataName: row.type === 'manage_data' ? (d['name'] as string) ?? null : null,
+    dataValue: row.type === 'manage_data' ? (d['value'] as string) ?? null : null,
   };
 }
 
