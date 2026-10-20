@@ -42,7 +42,8 @@ const debugConfig: Config = {
   databaseUrl: 'postgresql://lumina:database-secret@db.example:5432/lumina?sslmode=require',
   pollIntervalMs: 5000,
   startLedger: 100,
-  dbPoolMax: 10,
+  dbWritePoolMax: 10,
+  dbReadPoolMax: 4,
   dbPoolIdleTimeoutMs: 10000,
   dbPoolConnectionTimeoutMs: 0,
   sorobanRpcUrl: 'https://soroban.example/rpc/token-path?token=soroban-secret',
@@ -208,6 +209,7 @@ test('the flat numbers describe the network that is worst off', async () => {
       latestHorizonLedger: 5000,
       lagLedgers: 0,
       secondsSinceLastIndex: 2,
+      horizonPaused: false,
     },
     {
       network: 'testnet',
@@ -215,6 +217,7 @@ test('the flat numbers describe the network that is worst off', async () => {
       latestHorizonLedger: 400,
       lagLedgers: 300,
       secondsSinceLastIndex: 30,
+      horizonPaused: false,
     },
   ]);
 });
