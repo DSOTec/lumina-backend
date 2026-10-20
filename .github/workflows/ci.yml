@@ -173,6 +173,12 @@ jobs:
       - run: npm ci
       # The stack runs the built services, as their images do.
       - run: npm run build
+      # The soak test's leak detector, on known series and on a process that
+      # really leaks. The soak itself is too long for a pull request; it runs
+      # on a schedule (soak.yml).
+      - run: npm run test:soak:detector
+        env:
+          TEST_DATABASE_URL: postgresql://lumina:lumina_test@localhost:5432/lumina_test
       # Fails Postgres, Horizon and Soroban RPC in turn and together, and
       # requires the services to recover with nothing but their restart policy.
       # See docs/CHAOS_TESTING.md.
