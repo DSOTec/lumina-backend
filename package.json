@@ -19,6 +19,7 @@
     "explain:update": "ts-node-transpile-only --project db/explain/tsconfig.json db/explain/run.ts update",
     "audit:trustlines": "ts-node-transpile-only --project db/explain/tsconfig.json db/audit/trustlines.ts",
     "audit:assets": "ts-node-transpile-only --project db/explain/tsconfig.json db/audit/assets.ts",
+    "audit:operations": "ts-node-transpile-only --project db/explain/tsconfig.json db/audit/operations.ts",
     "test:indexer": "cd indexer && npm test",
     "test:graphql": "cd graphql-server && npm test",
     "test:chaos": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register --test test/chaos/chaos.test.ts",

@@ -290,6 +290,24 @@ measurements, the multi-network index that was measured and rejected, and the
 growth/retention numbers are in
 [docs/LEDGERS_INDEX_REVIEW.md](docs/LEDGERS_INDEX_REVIEW.md).
 
+`operations` is the table the indexer writes most and the API reads most. Its
+audit replays real mainnet ledgers through `indexLedger`, runs every API query
+over the table, and measures a retention round:
+
+```bash
+npm run audit:operations -- fetch 1000     # cache mainnet ledgers from Horizon (once)
+npm run audit:operations -- run <label>    # replay, read, prune and EXPLAIN on a scratch database
+npm run audit:operations -- report         # read-only stats; safe on a deployment
+psql $DATABASE_URL -f db/audit/operations.sql   # the same report, without Node
+```
+
+That review replaced nine secondary indexes with seven (migration 019): the
+indexer's WAL fell 54% and the table's indexes 65%, and the operations listing
+went from a sequential scan to 134 buffers. It also found that at its defaults
+the retention prune removes fewer operations an hour than mainnet adds. The
+measurements and the growth numbers are in
+[docs/OPERATIONS_INDEX_REVIEW.md](docs/OPERATIONS_INDEX_REVIEW.md).
+
 ## Run with Docker
 
 ```bash
