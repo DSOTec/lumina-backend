@@ -4,7 +4,7 @@ import type { ContractEvent, ContractStorageEntry } from './soroban';
 import { notifyIndexed } from './notify';
 import { subsystem } from './logger';
 import { dbPoolConnectionsIdle, dbPoolConnectionsTotal, dbPoolWaiting, indexerPoolErrors } from './metrics';
-import { configurePoolWithPreparedStatements, PREPARED_STATEMENTS } from './preparedStatements';
+import { PREPARED_STATEMENTS } from './preparedStatements';
 
 const log = subsystem('db');
 import { parseContractSchema, type ContractSchema } from './customSchema';
@@ -105,9 +105,6 @@ export function createPool(databaseUrl: string, options?: PoolConfig, role: DbPo
     indexerPoolErrors.inc({ pool: role });
     log.error({ pool: role, err: err.message }, 'unexpected PostgreSQL pool client error; pool will replace the client');
   });
-  if (role === 'write') {
-    configurePoolWithPreparedStatements(pool);
-  }
   return pool;
 }
 
