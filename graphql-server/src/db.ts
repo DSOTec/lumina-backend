@@ -18,6 +18,30 @@ import {
   type TotalCount,
 } from './pagination';
 
+/**
+ * Keeps a dropped Postgres connection from taking the server down.
+ *
+ * pg-pool emits `error` on the pool when an idle client's connection dies — a
+ * Postgres restart, a failover, `pg_terminate_backend` — and with no listener
+ * that is an unhandled `'error'` event: the process exits, and every open
+ * subscription goes with it. A client checked out of the pool is worse off:
+ * pg-pool removes its own listener for the duration, so a connection dying in
+ * the middle of a request raises the same unhandled event on the client.
+ *
+ * Both are handled here. The pool replaces an idle client itself, so that case
+ * only needs reporting. For a checked-out client the request in flight already
+ * rejects with the same error and is answered as a failed request, and
+ * `release()` discards a client that is no longer queryable, so the client
+ * listener only has to exist.
+ */
+export function handlePoolErrors(pool: Pool, onIdleClientError: (err: Error) => void): Pool {
+  pool.on('error', onIdleClientError);
+  pool.on('connect', client => {
+    client.on('error', () => undefined);
+  });
+  return pool;
+}
+
 // ─── Row shapes (snake_case, matching db/schema.sql) ──────────────────────────
 
 interface LedgerRow {

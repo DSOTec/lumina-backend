@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import type { Pool } from 'pg';
 import { Pool as PgPool } from 'pg';
@@ -10,6 +11,7 @@ import {
   getLedgers,
   getOperations,
   getTransactions,
+  handlePoolErrors,
   mapAccount,
   mapEvent,
   mapLedger,
@@ -426,4 +428,24 @@ test('the accounts listing never reaches Horizon', async () => {
   // row.
   assert.equal(queries.length, 1);
   assert.equal(queries[0]?.params.length, 2);
+});
+
+test('handlePoolErrors reports an idle client error instead of letting it end the process', async () => {
+  // The listener was lost once, in a rewrite of the pool construction, and the
+  // first Postgres restart then took the server and its subscriptions down.
+  const pool = new PgPool({ connectionString: 'postgresql://localhost:5432/lumina' });
+  const reported: string[] = [];
+  handlePoolErrors(pool, err => reported.push(err.message));
+  assert.doesNotThrow(() => pool.emit('error', new Error('terminating connection due to administrator command')));
+  assert.deepEqual(reported, ['terminating connection due to administrator command']);
+  await pool.end();
+});
+
+test('handlePoolErrors covers a client whose connection dies while it is checked out', async () => {
+  // pg-pool removes its own error listener for as long as a client is in use.
+  const pool = handlePoolErrors(new PgPool({ connectionString: 'postgresql://localhost:5432/lumina' }), () => undefined);
+  const client = new EventEmitter();
+  pool.emit('connect', client);
+  assert.doesNotThrow(() => client.emit('error', new Error('Connection terminated unexpectedly')));
+  await pool.end();
 });

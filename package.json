@@ -21,6 +21,7 @@
     "audit:assets": "ts-node-transpile-only --project db/explain/tsconfig.json db/audit/assets.ts",
     "test:indexer": "cd indexer && npm test",
     "test:graphql": "cd graphql-server && npm test",
+    "test:chaos": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register --test test/chaos/chaos.test.ts",
     "manage-keys": "npm run --prefix graphql-server manage-keys --",
     "migrate": "npm run --prefix graphql-server migrate --",
     "build:shared": "tsc -p shared/tsconfig.json",
