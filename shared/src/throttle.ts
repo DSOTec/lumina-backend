@@ -10,6 +10,7 @@
 
 export interface ThrottleMetrics {
   requestsTotal: { inc: (labels: Record<string, string | number>) => void };
+  endpointRequests?: { inc: (labels: Record<string, string | number>) => void };
   requestDuration?: { startTimer: () => () => void };
   /** Optional adaptive-throttle gauges; used by callers that pace per purpose. */
   currentInterval?: { set: (labels: Record<string, string>, value: number) => void };

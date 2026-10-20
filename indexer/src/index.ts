@@ -55,11 +55,9 @@ import {
   recordFailedLedger,
   findLedgerGaps,
   countLedgerGaps,
-  getEarliestIndexedLedger,
-  getLatestTradePagingToken,
-  getOrInitBackfillProgress,
-  insertTrades,
-  updateBackfillProgress,
+  getIndexerCursor,
+  setIndexerCursor,
+  countPendingDeadLetters,
 } from './db';
 import { validateDatabaseSchema } from './validateSchema';
 import { decodeEvents } from './customDecode';
@@ -80,6 +78,8 @@ import {
   sorobanEventsTruncated,
   contractsWatched,
   sorobanRetentionWindowExceeded,
+  deadLetterQueueSize,
+  horizonPaused,
 } from './metrics';
 import {
   aggregateNetworkStates,
@@ -102,6 +102,7 @@ import { getLatestLedgerSequence, getLedger, getLedgerOperations, getLedgerTrans
 import { getActiveContracts, resolveRegistryConfigs, type RegistryConfig } from './registry';
 import { getEvents, getLatestLedgerSequence as getLatestRpcLedgerSequence, type ContractEvent } from './soroban';
 import { resolveNetworks, type NetworkConfig } from './networks';
+import { HorizonUnavailableError } from '@lumina/shared';
 
 // Read version from package.json for logging
 import { readFileSync } from 'fs';
@@ -249,6 +250,7 @@ function createLoop(network: NetworkConfig, registries: Map<string, RegistryConf
       latestIndexedLedger: 0,
       latestHorizonLedger: 0,
       lastIndexedAt: null,
+      horizonPaused: false,
     },
     cursor: 0,
     eventsCursor: 0,
@@ -391,6 +393,10 @@ export async function fetchAndIndexLedgerWithRetry(
       if (attempt === actualRetryAttempts) {
         indexingErrors.inc({ loop: 'ledger' });
         const errorMsg = message(err);
+        if (err instanceof HorizonUnavailableError) {
+          log.warn({ network, ledger: sequence }, 'Horizon is unavailable; leaving ledger pending without marking it failed');
+          return false;
+        }
         log.error({ network, ledger: sequence, attempts: attempt, err: errorMsg }, 'giving up on ledger; recording failure and enqueueing for durable retry');
         // Deliberately allowed to throw: if the retry cannot be recorded the
         // ledger is unindexed and unrecorded, and letting the error propagate
@@ -547,7 +553,7 @@ async function pollContractEvents(loop: NetworkLoop): Promise<void> {
   if (!loop.sorobanRpcUrl || contractIds.length === 0) return;
   try {
     if (loop.eventsCursor === 0) {
-      const dbCursor = await getLatestIndexedEventLedger(pool, name);
+      const dbCursor = await getIndexerCursor(pool, name, 'events') ?? await getLatestIndexedEventLedger(pool, name);
       if (dbCursor > 0) {
         loop.eventsCursor = dbCursor + 1;
       } else {
@@ -594,6 +600,7 @@ async function pollContractEvents(loop: NetworkLoop): Promise<void> {
       );
     }
     loop.eventsCursor = Math.max(loop.eventsCursor, latestLedger - EVENTS_SAFETY_LAG_LEDGERS + 1);
+    await setIndexerCursor(pool, name, 'events', loop.eventsCursor);
   } catch (err) {
     indexingErrors.inc({ loop: 'contract-events' });
     log.error({ network: name, err: message(err) }, 'contract event polling failed');
@@ -726,7 +733,7 @@ async function runNetworkLoop(loop: NetworkLoop): Promise<void> {
   // start never takes the others down with it.
   let initialised = false;
   const initCursor = async (): Promise<void> => {
-    loop.cursor = await getLatestIndexedLedger(pool, name);
+    loop.cursor = await getIndexerCursor(pool, name, 'forward') ?? await getLatestIndexedLedger(pool, name);
     if (loop.cursor === 0 && START_LEDGER !== undefined) {
       loop.cursor = START_LEDGER - 1;
       log.info({ network: name, ledger: START_LEDGER }, 'starting from configured START_LEDGER');
@@ -849,11 +856,14 @@ async function runNetworkLoop(loop: NetworkLoop): Promise<void> {
 
       const latest = await getLatestLedgerSequence(loop.network.horizonUrl);
       loop.state.latestHorizonLedger = latest;
+      horizonPaused.set({ network: name }, 0);
+      loop.state.horizonPaused = false;
       recordHorizonTip(name, latest, loop.state.latestIndexedLedger || loop.cursor);
 
       loop.cursor = await runLedgerCatchUp(loop.cursor, latest, indexOne, advanced =>
         recordHorizonTip(name, latest, advanced)
       );
+      deadLetterQueueSize.set({ network: name }, await countPendingDeadLetters(pool, name));
 
       if (isShuttingDown) break;
       await pollContractEvents(loop);
@@ -861,6 +871,13 @@ async function runNetworkLoop(loop: NetworkLoop): Promise<void> {
       await pollTrades(loop);
     } catch (err) {
       indexingErrors.inc({ loop: 'main' });
+      if (err instanceof HorizonUnavailableError) {
+        horizonPaused.set({ network: name }, 1);
+        loop.state.horizonPaused = true;
+        log.warn({ network: name }, 'all Horizon endpoints unavailable; pausing indexing until recovery');
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
       log.error({ network: name, err: message(err) }, 'indexer loop error');
       if (err instanceof Error) {
         captureException(err, { loop: 'main', network: name, ledger: loop.cursor });
@@ -1119,4 +1136,3 @@ function redactUrl(url: string): string {
     return '(unparseable)';
   }
 }
-
